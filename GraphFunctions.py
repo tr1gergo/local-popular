@@ -29,6 +29,8 @@ def generate_graph(n, k, p, q):
         G = nx.compose(G, subgraph)
         subgraphs.append(set(mapping.values()))
 
+
+
     # Add random inter-subgraph edges with probability q
     for i in range(k):
         for j in range(i + 1, k):
@@ -38,6 +40,8 @@ def generate_graph(n, k, p, q):
                         G.add_edge(u, v)
 
     return G, truth
+
+
 
 
 
@@ -253,3 +257,16 @@ def generate_agents(n, d):
     """Generate n agents with d-dimensional trait vectors.
     Each trait is an integer between 0 and 9."""
     return [tuple(random.random() for _ in range(d)) for _ in range(n)]
+
+
+def randomize_graph_node_labels(G,truth = None):
+    new_nodes = list(G.nodes())
+
+    r = np.arange(len(new_nodes))
+    np.random.shuffle(r)
+    G = nx.relabel_nodes(G, {i: r[i] for i in range(len(r))})
+    if truth is not None:
+        truth_r = [truth[r[i]] for i in range(len(new_nodes))]
+        return G,truth_r
+
+    return G,None

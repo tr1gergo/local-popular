@@ -1,5 +1,9 @@
 
 from collections import defaultdict
+import time
+
+import networkx as nx
+from pandas.tseries import frequencies
 
 
 def locally_popular_clustering(agents, friendship_graph, enemy_graph, initial_clustering, allow_exit=False,
@@ -68,7 +72,7 @@ def locally_popular_clustering(agents, friendship_graph, enemy_graph, initial_cl
             # print(f"{f_e_values[v][current_cluster]}")
             # print(f"{f_e_values[v][best_move]}")
 
-    print(num_switches)
+    #print(num_switches)
     return clustering
 
 def precompute_f_e_values(agents, cluster_to_agents, enemy_graph, friendship_graph):
@@ -210,3 +214,50 @@ def extract_labels_from_communities(communities):
 
     return d
 
+def time_tester(test_function,repeat):
+    times = []
+    output = []
+
+    for i in range(repeat):
+        start_time = time.perf_counter()
+        out = test_function()
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        times = times + [elapsed_time]
+        output = output + [out]
+
+    return times, output
+
+from sklearn.metrics import rand_score
+
+def calculate_scores_CD(outputs,truth,graph):
+    rand_scores = []
+    modularity_scores = []
+
+    for output in outputs:
+        labels = list(output.values())
+        if truth is not None:
+            rand_scores += [rand_score(truth,labels)]
+        else:
+            rand_scores += [-1]
+
+        communities = get_communities_from_dict(output)
+        #modularity_scores += [nx.community.modularity(graph,communities)]
+
+    avg_rand = sum(rand_scores)/len(rand_scores)
+    if avg_rand == -1.0:
+        avg_rand = 'n.A.'
+    avg_modularity = 1#sum(modularity_scores)/len(modularity_scores)
+    scores = {'Rand Index':avg_rand, 'Modularity':avg_modularity}
+    return scores
+
+
+def get_communities_from_dict(dictionary):
+    communities = {}
+    for key, value in dictionary.items():
+        if not value in communities:
+            communities[value] = [key]
+        else:
+            communities[value].append(key)
+
+    return communities
