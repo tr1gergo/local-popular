@@ -228,7 +228,8 @@ def time_tester(test_function,repeat):
 
     return times, output
 
-from sklearn.metrics import rand_score
+from sklearn.metrics import rand_score, silhouette_score, davies_bouldin_score
+
 
 def calculate_scores_CD(outputs,truth,graph):
     rand_scores = []
@@ -242,13 +243,39 @@ def calculate_scores_CD(outputs,truth,graph):
             rand_scores += [-1]
 
         communities = get_communities_from_dict(output)
-        #modularity_scores += [nx.community.modularity(graph,communities)]
+        #print(communities)
+        modularity_scores += [nx.community.modularity(graph,communities)]
 
     avg_rand = sum(rand_scores)/len(rand_scores)
     if avg_rand == -1.0:
         avg_rand = 'n.A.'
-    avg_modularity = 1#sum(modularity_scores)/len(modularity_scores)
+    avg_modularity = sum(modularity_scores)/len(modularity_scores)
     scores = {'Rand Index':avg_rand, 'Modularity':avg_modularity}
+    return scores
+
+def calculate_scores_clustering(outputs,truth,graph):
+    rand_scores = []
+    silhouette_scores = []
+    db_scores = []
+
+    for output in outputs:
+        if truth is not None:
+            rand_scores += [rand_score(truth,output)]
+            silhouette_scores += [silhouette_score(graph,truth)]
+            db_scores += [davies_bouldin_score(graph,truth)]
+        else:
+            rand_scores += [-1]
+            silhouette_scores += [-1]
+
+
+
+
+    avg_rand = sum(rand_scores)/len(rand_scores)
+    avg_silhouette = sum(silhouette_scores)/len(silhouette_scores)
+    avg_db = sum(db_scores)/len(db_scores)
+    if avg_rand == -1.0:
+        avg_rand = 'n.A.'
+    scores = {'Rand Index':avg_rand, 'Silhouette Score':avg_silhouette, 'Davies Bouldin Score':avg_db}
     return scores
 
 
@@ -256,8 +283,8 @@ def get_communities_from_dict(dictionary):
     communities = {}
     for key, value in dictionary.items():
         if not value in communities:
-            communities[value] = [key]
+            communities[value] = {key}
         else:
-            communities[value].append(key)
+            communities[value].add(key)
 
-    return communities
+    return communities.values()

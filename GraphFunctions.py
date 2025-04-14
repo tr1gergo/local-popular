@@ -139,7 +139,11 @@ def my_make_circles(n, radius=0.2):
 
     data = np.vstack(data)
 
-    return data
+    truth = []
+    for i in range(3):
+        truth = truth+ [i]*n_points_per_cluster
+
+    return data, truth
 
 def create_graph(edges, n):
     """Create a graph from edges."""
