@@ -261,8 +261,12 @@ def calculate_scores_clustering(outputs,truth,graph):
     for output in outputs:
         if truth is not None:
             rand_scores += [rand_score(truth,output)]
-            silhouette_scores += [silhouette_score(graph,truth)]
-            db_scores += [davies_bouldin_score(graph,truth)]
+            if len(set(output)) == 1:
+                silhouette_scores += [-100]
+                db_scores += [-100]
+            else:
+                silhouette_scores += [silhouette_score(graph,output)]
+                db_scores += [davies_bouldin_score(graph,output)]
         else:
             rand_scores += [-1]
             silhouette_scores += [-1]
@@ -275,6 +279,10 @@ def calculate_scores_clustering(outputs,truth,graph):
     avg_db = sum(db_scores)/len(db_scores)
     if avg_rand == -1.0:
         avg_rand = 'n.A.'
+    if avg_silhouette == -100.0:
+        avg_silhouette = 'n.A.'
+    if avg_db == -100.0:
+        avg_db = 'n.A.'
     scores = {'Rand Index':avg_rand, 'Silhouette Score':avg_silhouette, 'Davies Bouldin Score':avg_db}
     return scores
 
