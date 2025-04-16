@@ -274,3 +274,15 @@ def randomize_graph_node_labels(G,truth = None):
         return G,truth_r
 
     return G,None
+
+
+def randomize_graph_pos_labels(G,truth = None):
+
+    r = np.arange(len(G))
+    np.random.shuffle(r)
+    G_r = [G[r[i]] for i in range(len(r))]
+    if truth is not None:
+        truth_r = [truth[r[i]] for i in range(len(r))]
+        return G_r,truth_r
+
+    return G_r,None

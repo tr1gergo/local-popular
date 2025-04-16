@@ -3,7 +3,42 @@ from collections import defaultdict
 import time
 
 import networkx as nx
-from pandas.tseries import frequencies
+
+from GraphFunctions import create_graphs_euclid, create_graphs_hop_distance
+
+
+def locally_popular_clustering_with_euclid_graphs(agents,f,e, initial_clusters=None, allow_exit=False,
+                               print_steps=False, mode='B', max_coalitions=0, use_first_move=False, pre = None):
+    if initial_clusters is None:
+        initial_clusters = len(agents)
+
+    if pre is not None:
+        initial_labels = pre(agents,initial_clusters)
+        initial_clustering = {i: initial_labels[i] for i in range(len(agents))}
+    else:
+        initial_clustering = {i: i % initial_clusters for i in range(len(agents))}
+
+    G_F,G_E = create_graphs_euclid(agents,f,e)
+    return locally_popular_clustering(agents,G_F,G_E,initial_clustering,allow_exit,print_steps,mode,max_coalitions,use_first_move)
+
+
+
+def locally_popular_clustering_with_hop_distance(agents,f,e, initial_clusters=None, allow_exit=False,
+                               print_steps=False, mode='B', max_coalitions=0, use_first_move=False, pre = None):
+    if initial_clusters is None:
+        initial_clusters = len(agents)
+
+    if pre is not None:
+        p = pre(agents,initial_clusters)
+        initial_labels = extract_labels_from_communities(p.communities)
+        initial_clustering = {i: initial_labels[i] for i in range(len(agents))}
+    else:
+        initial_clustering = {i: i % initial_clusters for i in range(len(agents))}
+
+    G_F,G_E = create_graphs_hop_distance(agents,f,e)
+
+    return locally_popular_clustering(agents,G_F,G_E,initial_clustering,allow_exit,print_steps,mode,max_coalitions,use_first_move)
+
 
 
 def locally_popular_clustering(agents, friendship_graph, enemy_graph, initial_clustering, allow_exit=False,
@@ -214,13 +249,16 @@ def extract_labels_from_communities(communities):
 
     return d
 
-def time_tester(test_function,repeat):
+
+
+def time_tester(function,permutations):
     times = []
     output = []
 
-    for i in range(repeat):
+    for permutation in permutations:
         start_time = time.perf_counter()
-        out = test_function()
+
+        out = function(permutation)
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         times = times + [elapsed_time]
@@ -231,20 +269,24 @@ def time_tester(test_function,repeat):
 from sklearn.metrics import rand_score, silhouette_score, davies_bouldin_score
 
 
-def calculate_scores_CD(outputs,truth,graph):
+
+
+
+def calculate_scores_CD(output,truth,graph):
     rand_scores = []
     modularity_scores = []
 
-    for output in outputs:
-        labels = list(output.values())
-        if truth is not None:
-            rand_scores += [rand_score(truth,labels)]
+    for i in range(len(output)):
+        labels = list(output[i].values())
+
+        if truth[i] is not None:
+            rand_scores += [rand_score(truth[i],labels)]
         else:
             rand_scores += [-1]
 
-        communities = get_communities_from_dict(output)
+        communities = get_communities_from_dict(output[i])
         #print(communities)
-        modularity_scores += [nx.community.modularity(graph,communities)]
+        modularity_scores += [nx.community.modularity(graph[i],communities)]
 
     avg_rand = sum(rand_scores)/len(rand_scores)
     if avg_rand == -1.0:
@@ -253,26 +295,26 @@ def calculate_scores_CD(outputs,truth,graph):
     scores = {'Rand Index':avg_rand, 'Modularity':avg_modularity}
     return scores
 
-def calculate_scores_clustering(outputs,truth,graph):
+
+
+def calculate_scores_clustering(output,truth,graph):
     rand_scores = []
     silhouette_scores = []
     db_scores = []
 
-    for output in outputs:
-        if truth is not None:
-            rand_scores += [rand_score(truth,output)]
-            if len(set(output)) == 1:
+    for i in range(len(output)):
+        if truth[i] is not None:
+            rand_scores += [rand_score(truth[i], output[i])]
+            if len(set(output[i])) == 1:
                 silhouette_scores += [-100]
                 db_scores += [-100]
             else:
-                silhouette_scores += [silhouette_score(graph,output)]
-                db_scores += [davies_bouldin_score(graph,output)]
+                silhouette_scores += [silhouette_score(graph[i], output[i])]
+                db_scores += [davies_bouldin_score(graph[i], output[i])]
         else:
             rand_scores += [-1]
             silhouette_scores += [-1]
-
-
-
+            db_scores += [-1]
 
     avg_rand = sum(rand_scores)/len(rand_scores)
     avg_silhouette = sum(silhouette_scores)/len(silhouette_scores)
@@ -285,6 +327,8 @@ def calculate_scores_clustering(outputs,truth,graph):
         avg_db = 'n.A.'
     scores = {'Rand Index':avg_rand, 'Silhouette Score':avg_silhouette, 'Davies Bouldin Score':avg_db}
     return scores
+
+
 
 
 def get_communities_from_dict(dictionary):
