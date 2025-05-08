@@ -1,14 +1,26 @@
 
 from collections import defaultdict
-import time
 
-import networkx as nx
 
 from GraphFunctions import create_graphs_euclid, create_graphs_hop_distance
 
 
 def locally_stable_clustering_with_euclid_graphs(agents,f,e, initial_clusters=None, always_allow_exit=False,
-                               print_steps=False, mode='B', max_coalitions=0, use_first_move=False, pre = None):
+                               print_steps=False, mode='B', max_coalitions=0, pre = None):
+    """
+    Creates initial clustering, and friend/enemy graphs before starting the locally stable algorithm
+    Args:
+        agents (list): List of agent identifiers.
+        initial_clusters (int): Number of initial clusters.
+        always_allow_exit (bool, optional): If True, agents can always form new singleton clusters. Defaults to False.
+        print_steps (bool, optional): If True, prints details of each move made by agents. Defaults to False.
+        mode (str, optional): Determines the move selection rule ('B', 'F', or 'E'). Defaults to 'B'.
+        max_coalitions (int, optional): Maximum allowed number of clusters. If 0, no limit is enforced. Defaults to 0.
+        pre (function, optional): Function used to create an initial clustering of the agents. Defaults to None.
+
+    Returns:
+        dict: A mapping from each agent to their final cluster ID after reaching local stability.
+    """
     if initial_clusters is None:
         initial_clusters = len(agents)
 
@@ -19,12 +31,25 @@ def locally_stable_clustering_with_euclid_graphs(agents,f,e, initial_clusters=No
         initial_clustering = {i: i % initial_clusters for i in range(len(agents))}
 
     G_F,G_E = create_graphs_euclid(agents,f,e)
-    return locally_stable_clustering(agents,G_F,G_E,initial_clustering,allow_exit,print_steps,mode,max_coalitions,use_first_move)
-
+    return locally_stable_clustering(agents,G_F,G_E,initial_clustering,always_allow_exit,print_steps,mode,max_coalitions)
 
 
 def locally_stable_clustering_with_hop_distance(agents,f,e, initial_clusters=None, always_allow_exit=False,
-                               print_steps=False, mode='B', max_coalitions=0, use_first_move=False, pre = None):
+                               print_steps=False, mode='B', max_coalitions=0, pre = None):
+    """
+    Creates initial clustering, and friend/enemy graphs before starting the locally stable algorithm
+    Args:
+        agents (list): List of agent identifiers.
+        initial_clusters (int): Number of initial clusters.
+        always_allow_exit (bool, optional): If True, agents can always form new singleton clusters. Defaults to False.
+        print_steps (bool, optional): If True, prints details of each move made by agents. Defaults to False.
+        mode (str, optional): Determines the move selection rule ('B', 'F', or 'E'). Defaults to 'B'.
+        max_coalitions (int, optional): Maximum allowed number of clusters. If 0, no limit is enforced. Defaults to 0.
+        pre (function, optional): Function used to create an initial clustering of the agents. Defaults to None.
+
+    Returns:
+        dict: A mapping from each agent to their final cluster ID after reaching local stability.
+    """
     if initial_clusters is None:
         initial_clusters = len(agents)
 
@@ -37,16 +62,31 @@ def locally_stable_clustering_with_hop_distance(agents,f,e, initial_clusters=Non
 
     G_F,G_E = create_graphs_hop_distance(agents,f,e)
 
-    return locally_stable_clustering(agents,G_F,G_E,initial_clustering,always_allow_exit,print_steps,mode,max_coalitions,use_first_move)
+    return locally_stable_clustering(agents,G_F,G_E,initial_clustering,always_allow_exit,print_steps,mode,max_coalitions)
+
 
 
 
 def locally_stable_clustering(agents, friendship_graph, enemy_graph, initial_clustering, always_allow_exit=False,
-                               print_steps=False, mode='B', max_coalitions=0, use_first_move=False):
-    """Perform clustering to achieve local popularity."""
-    # Initialize clustering and cluster-to-agents mapping
-    n = len(agents)
+                               print_steps=False, mode='B', max_coalitions=0):
+    """
+    Performs iterative clustering of agents to achieve a locally stable clustering.
 
+    Args:
+        agents (list): List of agent identifiers.
+        friendship_graph (networkx.Graph): A NetworkX graph representing friendships between agents.
+        enemy_graph (networkx.Graph): A NetworkX graph representing enmities between agents.
+        initial_clustering (dict): A dictionary mapping each agent to an initial cluster ID.
+        always_allow_exit (bool, optional): If True, agents can always form new singleton clusters. Default is False.
+        print_steps (bool, optional): If True, prints details of each move made by agents. Default is False.
+        mode (str, optional): Determines the move selection rule (e.g., 'B' for a specific strategy). Default is 'B'.
+        max_coalitions (int, optional): Maximum allowed number of clusters. If 0, no limit is enforced. Default is 0.
+
+    Returns:
+        dict: A dictionary mapping each agent to their final cluster ID after reaching local stability.
+    """
+
+    # Initialize clustering and cluster-to-agents mapping
     clustering = initial_clustering.copy()  # Map agent to cluster ID
     cluster_to_agents = defaultdict(set)
     for agent, cluster in clustering.items():
@@ -108,7 +148,22 @@ def locally_stable_clustering(agents, friendship_graph, enemy_graph, initial_clu
     #print(num_switches)
     return clustering
 
+
 def precompute_f_e_values(agents, cluster_to_agents, enemy_graph, friendship_graph):
+    """
+    Precomputes the number of friends and enemies each agent has in every cluster.
+
+    Args:
+        agents (list): List of agent identifiers (used for indexing).
+        cluster_to_agents (dict): A dictionary mapping cluster IDs to sets of agents in each cluster.
+        enemy_graph (networkx.Graph): A NetworkX graph representing enmities between agents.
+        friendship_graph (networkx.Graph): A NetworkX graph representing friendships between agents.
+
+    Returns:
+        dict: A nested dictionary in the form f_e_values[agent][cluster] = [num_friends, num_enemies],
+              where each entry holds the count of friends and enemies the agent has in the given cluster.
+
+    """
     f_e_values = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # {agent: {cluster: [f, -e]}}
     for v in range(len(agents)):
         for cluster in cluster_to_agents:
@@ -120,7 +175,26 @@ def precompute_f_e_values(agents, cluster_to_agents, enemy_graph, friendship_gra
     return f_e_values
 
 
+
 def find_best_move(allow_exit, cluster_to_agents, clustering, f_e_values, agents, mode):
+    """
+    Finds the best possible move for any agent based on the utility function.
+
+    Args:
+        allow_exit (bool): Whether agents are allowed to exit their cluster and form a new one.
+        cluster_to_agents (dict): A dictionary mapping cluster IDs to sets of agents currently in each cluster.
+        clustering (dict): A dictionary mapping each agent to their current cluster ID.
+        f_e_values (dict): A nested dictionary in the form f_e_values[agent][cluster] = [num_friends, num_enemies].
+        agents (list): List of agent identifiers.
+        mode (str): Specifies which set of constraints to use ('B', 'F', or 'E').
+
+    Returns:
+        list: A list [agent, target_cluster, vote_value], where:
+            - agent: The agent who has the most favorable move available.
+            - target_cluster: The best target cluster for the agent to move to, or "exit" to form a new one.
+            - vote_value: An integer representing the score or desirability of the move.
+          Returns [None, None, 0] if no beneficial move is found.
+    """
 
     n = len(agents)
     f_value, e_value = 1, 1
@@ -175,35 +249,17 @@ def find_best_move(allow_exit, cluster_to_agents, clustering, f_e_values, agents
 
 
 
-
-def constraint_0(f_current,e_current,f_target,e_target):
-    if f_target - e_target >= f_current - e_current + 1:
-        return True
-    return False
-
-def constraint_1(f_current,e_current,f_target,e_target):
-    if f_target - e_target >= f_current - e_current +2:
-        return True
-    return False
-
-def constraint_2(f_current,e_current,f_target,e_target):
-    if (f_current - e_current + 1 >= f_target - e_target) and (f_target - e_target >= f_current + e_current):
-        return True
-    return False
-
-def constraint_3(f_current,e_current,f_target,e_target):
-    if 2*f_target-e_target > 2*f_current - e_current:
-        return True
-    return False
-
-def constraint_4(f_current,e_current,f_target,e_target):
-    if f_target-2*e_target > f_current - 2*e_current:
-        return True
-    return False
-
-
-
 def extract_labels_from_communities(communities):
+    """
+    Converts a dictionary of node-to-community mappings into a list of communities,
+    where the index i in the list represents node i.
+
+    Args:
+        dictionary (dict): A dictionary where the keys are nodes and the values are community labels.
+
+    Returns:
+        list: A list of sets, where each set represents a community and contains the nodes assigned to that community.
+    """
     d = dict()
     for i in range(len(communities)):
         c = communities[i]

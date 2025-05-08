@@ -2,13 +2,17 @@
 from matplotlib import pyplot as plt
 import numpy as np
 
+
 def plot_clustering(points, clusters, title):
     """
     Plots the given clustering.
 
-    Parameters:
-    - points (list or array): A list or array of points where each entry is a list/array of coordinates.
-    - clusters (dict): A dictionary where keys are point indices (0 to n-1) and values are cluster indices.
+    Args:
+        points (list or array): A list or array of points where each entry is a list/array of coordinates.
+        clusters (dict): A dictionary where keys are point indices (0 to n-1) and values are cluster indices.
+
+    Returns:
+        None
     """
     # Convert points to a numpy array for easier processing
     data = np.array(points)

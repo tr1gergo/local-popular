@@ -11,7 +11,21 @@ from collections import deque
 
 
 def generate_graph(n, k, p, q):
-    """ Creates k disjoint Erdos-Renyi graphs of size n and edge probability p, then connects vertices from different components with probability q"""
+    """
+    Generates a graph consisting of k Erdős-Rényi subgraphs with random inter-subgraph edges.
+
+    Args:
+        n (int): The number of nodes in each subgraph.
+        k (int): The number of subgraphs to generate.
+        p (float): The probability of creating an edge between two nodes within the same subgraph.
+        q (float): The probability of creating an edge between nodes from different subgraphs.
+
+    Returns:
+        tuple: A tuple containing:
+            - G (networkx.Graph): The generated graph with inter- and intra-subgraph edges.
+            - truth (list): A list where each element corresponds to the community label of the node
+              (in the form of a list of k values repeated n times for each subgraph).
+    """
     G = nx.Graph()
     subgraphs = []
 
@@ -21,15 +35,12 @@ def generate_graph(n, k, p, q):
         t = [i]*n
         truth += t
 
-
     for i in range(k):
         subgraph = nx.erdos_renyi_graph(n, p)
         mapping = {node: node + i * n for node in subgraph.nodes()}
         nx.relabel_nodes(subgraph, mapping, copy=False)
         G = nx.compose(G, subgraph)
         subgraphs.append(set(mapping.values()))
-
-
 
     # Add random inter-subgraph edges with probability q
     for i in range(k):
@@ -46,6 +57,24 @@ def generate_graph(n, k, p, q):
 
 
 def create_graphs_hop_distance(G,friend_bound,enemy_bound):
+    """
+    Creates two graphs based on hop distance between nodes: one for "friend" relationships and one for
+    "enemy" relationships based on path lengths between nodes.
+
+    Args:
+        G (networkx.Graph): The input graph to analyze. It must be undirected.
+        friend_bound (float): A threshold value (between 0 and 1) determining the maximum relative hop
+                              distance for an edge to be considered a "friend" edge.
+        enemy_bound (float): A threshold value (greater than 1) determining the minimum relative hop
+                             distance for an edge to be considered an "enemy" edge.
+
+    Returns:
+        tuple: A tuple containing two graphs:
+            - G_F (networkx.Graph): The graph representing "friend" edges, where nodes are connected
+                                    if their hop distance is within the `friend_bound`.
+            - G_E (networkx.Graph): The graph representing "enemy" edges, where nodes are connected
+                                    if their hop distance is greater than `enemy_bound`.
+    """
     shortest_paths = dict(nx.all_pairs_shortest_path_length(G))
 
     # Calculate graph diameter
@@ -145,15 +174,15 @@ def my_make_circles(n, radius=0.2):
 
     return data, truth
 
+# Create a graph from edges.
 def create_graph(edges, n):
-    """Create a graph from edges."""
     G = nx.Graph()
     G.add_nodes_from(range(n))
     G.add_edges_from(edges)
     return G
 
+# Perform BFS from the start node and return all nodes within distance l.
 def bfs(graph, start, l):
-    """Perform BFS from the start node and return all nodes within distance l."""
     visited = {start}
     queue = deque([(start, 0)])  # (node, current_distance)
 
@@ -169,19 +198,28 @@ def bfs(graph, start, l):
     return visited
 
 
+
+
+
 def calculate_relationships_kNN(agents, k, l):
     """
-    Calculate friendship and enemy graphs based on k-nearest neighbors and distance threshold l.
+    Calculates friendship and enemy relationships based on k-nearest neighbors and a distance threshold.
 
-    Parameters:
-    - agents: List of points in d-dimensional space (numpy array).
-    - k: Number of nearest neighbors to consider.
-    - l: Distance threshold for enmity.
+    Args:
+        agents (numpy.ndarray or list): A list or array of agent positions in a d-dimensional space,
+                                        where each entry represents an agent's coordinates.
+        k (int): The number of nearest neighbors to consider for determining friendships.
+        l (float): A distance threshold to determine enmities. Agents with a Manhattan distance greater than
+                  or equal to `l` are considered enemies.
 
     Returns:
-    - friendship_edges: List of pairs of agent indices that are friends.
-    - enemy_edges: List of pairs of agent indices that are enemies.
+        tuple: A tuple containing two lists:
+            - friendship_edges (list of tuples): A list of pairs of agent indices that are considered friends.
+            - enemy_edges (list of tuples): A list of pairs of agent indices that are considered enemies, based on
+                                           the distance threshold `l`.
+
     """
+
     # Initialize variables
     n = len(agents)
     friendship_edges = []
@@ -214,8 +252,23 @@ def calculate_relationships_kNN(agents, k, l):
     print(enemy_edges)
     return friendship_edges, enemy_edges
 
+# Calculate friendship and enemy graphs based on the euclidian distances.
 def calculate_euclidian_relationships(agents,friendship_bound,enemy_bound):
-    """Calculate friendship and enemy graphs based on the euclidian distances."""
+    """
+    Calculates friendship and enemy relationships based on Euclidean distances between agents.
+
+    Args:
+        agents (numpy.ndarray or list): A list or array of agent positions in a d-dimensional space,
+                                         where each entry represents an agent's coordinates.
+        friendship_bound (float): The maximum normalized Euclidean distance below which agents are considered friends.
+        enemy_bound (float): The minimum normalized Euclidean distance above which agents are considered enemies.
+
+    Returns:
+        tuple: A tuple containing two lists:
+            - friendship_edges (list of tuples): A list of pairs of agent indices that are considered friends.
+            - enemy_edges (list of tuples): A list of pairs of agent indices that are considered enemies, based on
+                                           the Euclidean distance threshold.
+    """
     n = len(agents)
     distances = np.zeros((n,n))
     friendship_edges = []
@@ -239,8 +292,26 @@ def calculate_euclidian_relationships(agents,friendship_bound,enemy_bound):
 
     return friendship_edges, enemy_edges
 
+
 def calculate_relationships(agents, l1, l2, k1, k2):
-    """Calculate friendship and enemy graphs based on the trait difference rules."""
+    """
+    Calculates friendship and enemy relationships between agents based on trait differences.
+
+    Args:
+        agents (list of lists or numpy.ndarray): A list of agents, where each agent is represented by a list
+                                                 or array of traits (e.g., features or attributes).
+        l1 (float): The threshold for trait difference to count as a friendship condition (for each trait).
+        l2 (int): The minimum number of traits where the difference is less than or equal to l1 for agents to be friends.
+        k1 (float): The threshold for trait difference to count as an enmity condition (for each trait).
+        k2 (int): The minimum number of traits where the difference is greater than or equal to k1 for agents to be enemies.
+
+    Returns:
+        tuple: A tuple containing two lists:
+            - friendship_edges (list of tuples): A list of pairs of agent indices that are considered friends
+                                                  based on the trait difference conditions.
+            - enemy_edges (list of tuples): A list of pairs of agent indices that are considered enemies based
+                                            on the trait difference conditions.
+    """
     n = len(agents)
     friendship_edges = []
     enemy_edges = []
@@ -257,9 +328,10 @@ def calculate_relationships(agents, l1, l2, k1, k2):
 
     return friendship_edges, enemy_edges
 
+
+# Generate n agents with d-dimensional trait vectors.
+# Each trait is an integer between 0 and 9.
 def generate_agents(n, d):
-    """Generate n agents with d-dimensional trait vectors.
-    Each trait is an integer between 0 and 9."""
     return [tuple(random.random() for _ in range(d)) for _ in range(n)]
 
 
@@ -277,7 +349,6 @@ def randomize_graph_node_labels(G,truth = None):
 
 
 def randomize_graph_pos_labels(G,truth = None):
-
     r = np.arange(len(G))
     np.random.shuffle(r)
     G_r = [G[r[i]] for i in range(len(r))]
