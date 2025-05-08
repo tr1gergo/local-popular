@@ -7,7 +7,7 @@ import networkx as nx
 from GraphFunctions import create_graphs_euclid, create_graphs_hop_distance
 
 
-def locally_popular_clustering_with_euclid_graphs(agents,f,e, initial_clusters=None, always_allow_exit=False,
+def locally_stable_clustering_with_euclid_graphs(agents,f,e, initial_clusters=None, always_allow_exit=False,
                                print_steps=False, mode='B', max_coalitions=0, use_first_move=False, pre = None):
     if initial_clusters is None:
         initial_clusters = len(agents)
@@ -19,11 +19,11 @@ def locally_popular_clustering_with_euclid_graphs(agents,f,e, initial_clusters=N
         initial_clustering = {i: i % initial_clusters for i in range(len(agents))}
 
     G_F,G_E = create_graphs_euclid(agents,f,e)
-    return locally_popular_clustering(agents,G_F,G_E,initial_clustering,always_allow_exit,print_steps,mode,max_coalitions,use_first_move)
+    return locally_stable_clustering(agents,G_F,G_E,initial_clustering,allow_exit,print_steps,mode,max_coalitions,use_first_move)
 
 
 
-def locally_popular_clustering_with_hop_distance(agents,f,e, initial_clusters=None, always_allow_exit=False,
+def locally_stable_clustering_with_hop_distance(agents,f,e, initial_clusters=None, always_allow_exit=False,
                                print_steps=False, mode='B', max_coalitions=0, use_first_move=False, pre = None):
     if initial_clusters is None:
         initial_clusters = len(agents)
@@ -37,11 +37,11 @@ def locally_popular_clustering_with_hop_distance(agents,f,e, initial_clusters=No
 
     G_F,G_E = create_graphs_hop_distance(agents,f,e)
 
-    return locally_popular_clustering(agents,G_F,G_E,initial_clustering,always_allow_exit,print_steps,mode,max_coalitions,use_first_move)
+    return locally_stable_clustering(agents,G_F,G_E,initial_clustering,always_allow_exit,print_steps,mode,max_coalitions,use_first_move)
 
 
 
-def locally_popular_clustering(agents, friendship_graph, enemy_graph, initial_clustering, always_allow_exit=False,
+def locally_stable_clustering(agents, friendship_graph, enemy_graph, initial_clustering, always_allow_exit=False,
                                print_steps=False, mode='B', max_coalitions=0, use_first_move=False):
     """Perform clustering to achieve local popularity."""
     # Initialize clustering and cluster-to-agents mapping
@@ -66,10 +66,8 @@ def locally_popular_clustering(agents, friendship_graph, enemy_graph, initial_cl
         else:
             allow_exit = False
         stable = True
-        if use_first_move:
-            [v,best_move,best_vote] = find_first_move(allow_exit, cluster_to_agents, clustering, f_e_values, agents, mode)
-        else:
-            [v, best_move, best_vote] = find_best_move(allow_exit, cluster_to_agents, clustering, f_e_values, agents,
+
+        [v, best_move, best_vote] = find_best_move(allow_exit, cluster_to_agents, clustering, f_e_values, agents,
                                                         mode)
 
         # Make the best move if it's an improvement
@@ -121,41 +119,6 @@ def precompute_f_e_values(agents, cluster_to_agents, enemy_graph, friendship_gra
             f_e_values[v][cluster] = [friends_in_cluster, enemies_in_cluster]
     return f_e_values
 
-# returns the first move that creates a locally dominating coalition structure
-def find_first_move(allow_exit, cluster_to_agents, clustering, f_e_values, agents,mode):
-
-    for v in range(len(agents)):
-        current_cluster = clustering[v]
-        [f_current, e_current] = f_e_values[v][current_cluster]
-
-        # Evaluate moves to existing clusters
-        for candidate_cluster in cluster_to_agents:
-            if candidate_cluster == current_cluster:
-                continue
-            [f_target, e_target] = f_e_values[v][candidate_cluster]
-
-            if mode == 'B' and constraint_0(f_current, e_current, f_target, e_target):
-                return [v,candidate_cluster,0]
-            if mode == 'F' and (constraint_1(f_current, e_current, f_target, e_target) or
-                    (constraint_2(f_current, e_current, f_target, e_target) and constraint_3(f_current, e_current, f_target, e_target))):
-                return [v,candidate_cluster,0]
-            if mode == 'E' and (constraint_1(f_current, e_current, f_target, e_target) or
-                  (constraint_2(f_current, e_current, f_target, e_target) and constraint_4(f_current, e_current, f_target, e_target))):
-                return [v,candidate_cluster,0]
-
-        # Evaluate exit (if allowed)
-        if allow_exit:
-            if mode == 'B' and constraint_0(f_current, e_current, 0, 0):
-                return [v,"exit",0]
-            if mode == 'F' and (constraint_1(f_current, e_current, 0, 0) or
-                    (constraint_2(f_current, e_current, 0, 0) and constraint_3(f_current, e_current,0, 0))):
-                return [v, "exit", 0]
-            if mode == 'E' and (constraint_1(f_current, e_current, 0, 0) or
-                    (constraint_2(f_current, e_current, 0, 0) and constraint_4(f_current, e_current,0, 0))):
-                return [v, "exit", 0]
-
-    return [None,None,0]
-
 
 def find_best_move(allow_exit, cluster_to_agents, clustering, f_e_values, agents, mode):
 
@@ -185,8 +148,8 @@ def find_best_move(allow_exit, cluster_to_agents, clustering, f_e_values, agents
             v_vote = f_value * f_target + e_value * e_current - f_value * f_current - e_value * e_target
             if v_vote > 0:
                 v_vote = 1
-            if v_vote < 0:
-                v_vote = -1
+            if v_vote <= 0:
+                continue
             vote = vote + v_vote
 
             if (vote > best_move_vote):
@@ -248,95 +211,3 @@ def extract_labels_from_communities(communities):
             d[node] = i
 
     return d
-
-
-
-def time_tester(function,permutations):
-    times = []
-    output = []
-
-    for permutation in permutations:
-        start_time = time.perf_counter()
-
-        out = function(permutation)
-        end_time = time.perf_counter()
-        elapsed_time = end_time - start_time
-        times = times + [elapsed_time]
-        output = output + [out]
-
-    return times, output
-
-from sklearn.metrics import rand_score, silhouette_score, davies_bouldin_score
-
-
-
-
-
-def calculate_scores_CD(output,truth,graph):
-    rand_scores = []
-    modularity_scores = []
-
-    for i in range(len(output)):
-        labels = list(output[i].values())
-
-        if truth[i] is not None:
-            rand_scores += [rand_score(truth[i],labels)]
-        else:
-            rand_scores += [-1]
-
-        communities = get_communities_from_dict(output[i])
-        #print(communities)
-        modularity_scores += [nx.community.modularity(graph[i],communities)]
-
-    avg_rand = sum(rand_scores)/len(rand_scores)
-    if avg_rand == -1.0:
-        avg_rand = 'n.A.'
-    avg_modularity = sum(modularity_scores)/len(modularity_scores)
-    scores = {'Rand Index':avg_rand, 'Modularity':avg_modularity}
-    return scores
-
-
-
-def calculate_scores_clustering(output,truth,graph):
-    rand_scores = []
-    silhouette_scores = []
-    db_scores = []
-
-    for i in range(len(output)):
-        if truth[i] is not None:
-            rand_scores += [rand_score(truth[i], output[i])]
-            if len(set(output[i])) == 1:
-                silhouette_scores += [-100]
-                db_scores += [-100]
-            else:
-                silhouette_scores += [silhouette_score(graph[i], output[i])]
-                db_scores += [davies_bouldin_score(graph[i], output[i])]
-        else:
-            rand_scores += [-1]
-            silhouette_scores += [-1]
-            db_scores += [-1]
-
-    avg_rand = sum(rand_scores)/len(rand_scores)
-    avg_silhouette = sum(silhouette_scores)/len(silhouette_scores)
-    avg_db = sum(db_scores)/len(db_scores)
-    if avg_rand == -1.0:
-        avg_rand = 'n.A.'
-    if avg_silhouette == -100.0:
-        avg_silhouette = 'n.A.'
-    if avg_db == -100.0:
-        avg_db = 'n.A.'
-    scores = {'Rand Index':avg_rand, 'Silhouette Score':avg_silhouette, 'Davies Bouldin Score':avg_db}
-    return scores
-
-
-
-
-def get_communities_from_dict(dictionary):
-    communities = {}
-    for key, value in dictionary.items():
-        if not value in communities:
-            communities[value] = {key}
-        else:
-            communities[value].add(key)
-
-    return communities.values()
