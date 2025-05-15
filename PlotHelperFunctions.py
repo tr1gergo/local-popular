@@ -73,9 +73,9 @@ def method_group(row):
             return 'LocStab-S'
         elif 'predicted number of clusters' in m:
             return 'LocStab-P'
-        elif 'output of leiden' in m:
+        elif 'output of leiden' in m.lower():
             return 'LocStab-Ld'
-        elif 'output of k-means' in m:
+        elif 'output of k-means' in m.lower():
             return 'LocStab-KM'
         elif 'output of dbscan' in m.lower():
             return 'LocStab-D'
@@ -85,11 +85,11 @@ def method_group(row):
             return 'LocPop-S'
         elif 'predicted number of clusters' in m:
             return 'LocPop-P'
-        elif 'output of k-means' in m:
+        elif 'output of k-means' in m.lower():
             return 'LocPop-KM'
         elif 'output of dbscan' in m.lower():
             return 'LocPop-D'
-        elif 'output of leiden' in m:
+        elif 'output of leiden' in m.lower():
             return 'LocPop-Ld'
 
     elif 'louvain' in m.lower():
