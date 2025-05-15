@@ -81,9 +81,11 @@ def permute_graph_with_truth(G, truth):
     mapping = {i: perm[i] for i in range(n)}
     G_permuted = nx.relabel_nodes(G, mapping)
 
-    truth_permuted = [truth[inverse_perm[i]] for i in range(n)]
+    if truth is not None:
+         truth_permuted = [truth[inverse_perm[i]] for i in range(n)]
 
-    return G_permuted, truth_permuted
+         return G_permuted, truth_permuted
+     return G_permuted,None
 
 def create_graphs_hop_distance(G,friend_bound,enemy_bound):
     """
