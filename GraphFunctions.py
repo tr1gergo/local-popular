@@ -54,7 +54,36 @@ def generate_graph(n, k, p, q):
 
 
 
+import random
 
+def permute_graph_with_truth(G, truth):
+    """
+
+    Permutes node labels in a graph and updates the truth list accordingly.
+    
+    Parameters:
+    - G: networkx.Graph with nodes labeled from 0 to n-1
+    - truth: list of length n, where truth[i] is the cluster label of node i
+
+    Returns:
+    - G_permuted: graph with permuted node labels
+    - truth_permuted: list where truth_permuted[i] is the label of node i in G_permuted
+    """
+    n = len(truth)
+    assert set(G.nodes()) == set(range(n)), "Graph nodes must be labeled 0 to n-1"
+
+    perm = list(range(n))
+    random.shuffle(perm)  # perm[i] is the new label of node i
+    inverse_perm = [0] * n
+    for i, p in enumerate(perm):
+        inverse_perm[p] = i  # inverse_perm[new_id] = old_id
+
+    mapping = {i: perm[i] for i in range(n)}
+    G_permuted = nx.relabel_nodes(G, mapping)
+
+    truth_permuted = [truth[inverse_perm[i]] for i in range(n)]
+
+    return G_permuted, truth_permuted
 
 def create_graphs_hop_distance(G,friend_bound,enemy_bound):
     """
@@ -335,17 +364,7 @@ def generate_agents(n, d):
     return [tuple(random.random() for _ in range(d)) for _ in range(n)]
 
 
-def randomize_graph_node_labels(G,truth = None):
-    new_nodes = list(G.nodes())
 
-    r = np.arange(len(new_nodes))
-    np.random.shuffle(r)
-    G = nx.relabel_nodes(G, {i: r[i] for i in range(len(r))})
-    if truth is not None:
-        truth_r = [truth[r[i]] for i in range(len(new_nodes))]
-        return G,truth_r
-
-    return G,None
 
 
 def randomize_graph_pos_labels(G,truth = None):
