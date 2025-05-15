@@ -66,7 +66,47 @@ def plot_stuff(points, clusters1, clusters2, clusters3, title="",title_1 = "", t
     plt.show()
 
 
-def plot_custom_thresholds_with_kmeans_dbscan(dfs, labels, dataset_name, score_col='Rand Index'):
+def method_group(row):
+        m = row['Method']
+        if "LS" in m:
+            if 'everyone alone' in m:
+                return 'LocStab-S'
+            elif 'predicted number of clusters' in m:
+                return 'LocStab-P'
+            elif 'output of leiden' in m:
+                return 'LocStab-Ld'
+        elif 'louvain' in m.lower():
+            return 'Louvain'
+        elif 'leiden' in m.lower():
+            return 'Leiden'
+        elif "LP" in m:
+            if 'everyone alone' in m:
+                return 'LocPop-S'
+            elif 'predicted number of clusters' in m:
+                return 'LocPop-P'
+            elif 'output of k-means' in m:
+                return 'LocPop-KM'
+            elif 'output of dbscan' in m:
+                return 'LocPop-D'
+        elif 'kmeans' in m.lower():
+            return 'K-means'
+        elif 'dbscan' in m.lower():
+            return 'DBSCAN'
+        else:
+            return 'Other'
+
+def variant_label(row):
+    m = row['Method']
+    if 'Enemy-Averse' in m:
+        return 'AE'
+    elif 'Balanced' in m:
+        return 'B'
+    elif 'Friend-Oriented' in m:
+        return 'AF'
+    else:
+        return 'Other'
+
+def plot_custom_thresholds_with_kmeans_dbscan(dfs, labels, dataset_name, score_col='Rand Index', mode="LP"):
     # Add threshold column to each DataFrame
     for df, label in zip(dfs, labels):
         df['Threshold'] = str(label)  # make sure label is string for plotting
@@ -76,42 +116,15 @@ def plot_custom_thresholds_with_kmeans_dbscan(dfs, labels, dataset_name, score_c
 
     # Filter for selected dataset
     df_all = df_all[df_all['Dataset'] == dataset_name].copy()
-
-    # Add method group
-    def method_group(row):
-        m = row['Method']
-        if 'everyone alone' in m:
-            return 'LocPop-S'
-        elif 'predicted number of clusters' in m:
-            return 'LocPop-P'
-        elif 'output of k-means' in m:
-            return 'LocPop-KM'
-        elif 'output of dbscan' in m:
-            return 'LocPop-D'
-        elif 'kmeans' in m.lower():
-            return 'K-means'
-        elif 'dbscan' in m.lower():
-            return 'DBSCAN'
-        else:
-            return 'Other'
-
-    def variant_label(row):
-        m = row['Method']
-        if 'Enemy-Averse' in m:
-            return 'AE'
-        elif 'Balanced' in m:
-            return 'B'
-        elif 'Friend-Oriented' in m:
-            return 'AF'
-        else:
-            return 'Other'
-
+ 
     df_all['method_group'] = df_all.apply(method_group, axis=1)
     df_all['variant'] = df_all.apply(variant_label, axis=1)
 
     # Define order and positions
-    method_order = ['K-means', 'DBSCAN', 'LocPop-S', 'LocPop-P',
-                    'LocPop-KM', 'LocPop-D']
+    if mode == "LP":
+        method_order = ['K-means', 'DBSCAN', 'LocPop-S', 'LocPop-P', 'LocPop-KM', 'LocPop-D']
+    else: 
+        method_order = ['K-means', 'DBSCAN', 'LocStab-S', 'LocStab-P', 'LocStab-KM', 'LocStab-D']
     method_pos = {method: i for i, method in enumerate(method_order)}
 
     variant_colors = {
@@ -255,7 +268,7 @@ def normalize_score_column_clustering(df, score_cols):
         df[col] = df[col].apply(try_parse_tuple_clustering)
     return df
 
-def plot_and_save_clustering(dfs,labels, dataset, score, save_path= None):
+def plot_and_save_clustering(dfs,labels, dataset, score, mode ="LP", save_path= None):
     plt.rcParams.update({'font.size': 18})
     for i in range(len(dfs)):
         dfs[i].replace("n.A.", np.nan, inplace= True)
@@ -265,50 +278,18 @@ def plot_and_save_clustering(dfs,labels, dataset, score, save_path= None):
     dfs=dfs,
     labels=labels,
     dataset_name=dataset,
-    score_col=score)
-    if save_path:
-        plt.savefig(save_path, format='png', dpi=300, bbox_inches='tight')
-        print(f"Figure saved as {save_path}")
-    plt.show()
-
-def try_parse_tuple_community(x):
-    # Handle actual tuples or lists
-    if isinstance(x, (tuple, list)) and len(x) == 2:
-        return (float(x[0]), float(x[1]))
-
-    # Handle strings like '(0.85, 0.05)'
-    if isinstance(x, str) and x.startswith('('):
-        try:
-            parsed = ast.literal_eval(x)
-            if isinstance(parsed, (tuple, list)) and len(parsed) == 2:
-                return (float(parsed[0]), float(parsed[1]))
-        except Exception:
-            pass
-
-    # Handle known invalids like 'nan', 'n.A.', empty string, etc.
-    return (np.nan, 0.0)
-
-def normalize_score_column_community(df, score_cols):
-    for col in score_cols:
-        df[col] = df[col].apply(try_parse_tuple_community)
-    return df
-def plot_and_save_community(dfs,labels, dataset, score, save_path= None):
-    for i in range(len(dfs)):
-        dfs[i].replace("n.A.", np.nan, inplace= True)
-        dfs[i] = normalize_score_column_community(dfs[i], [score])
-
-    fig, ax = plot_custom_thresholds_with_louvain_leiden(
-    dfs=dfs,
-    labels=labels,
-    dataset_name=dataset,
-    score_col=score)
+    score_col=score,
+    mode = mode)
     if save_path:
         plt.savefig(save_path, format='png', dpi=300, bbox_inches='tight')
         print(f"Figure saved as {save_path}")
     plt.show()
 
 
-def plot_custom_thresholds_with_louvain_leiden(dfs, labels, dataset_name, score_col='Rand Index'):
+
+
+
+def plot_custom_thresholds_with_louvain_leiden(dfs, labels, dataset_name, score_col='Rand Index', mode = "LP"):
     plt.rcParams.update({'font.size': 18})
     # Add threshold column to each DataFrame
     for df, label in zip(dfs, labels):
@@ -320,39 +301,16 @@ def plot_custom_thresholds_with_louvain_leiden(dfs, labels, dataset_name, score_
     # Filter for selected dataset
     df_all = df_all[df_all['Dataset'] == dataset_name].copy()
 
-    # Add method group
-    def method_group(row):
-        m = row['Method']
-        if 'everyone alone' in m:
-            return 'LocStab-S'
-        elif 'predicted number of clusters' in m:
-            return 'LocStab-P'
-        elif 'output of leiden' in m:
-            return 'LocStab-Ld'
-        elif 'louvain' in m.lower():
-            return 'Louvain'
-        elif 'leiden' in m.lower():
-            return 'Leiden'
-        else:
-            return 'Other'
-
-    def variant_label(row):
-        m = row['Method']
-        if 'Enemy-Averse' in m:
-            return 'AE'
-        elif 'Balanced' in m:
-            return 'B'
-        elif 'Friend-Oriented' in m:
-            return 'AF'
-        else:
-            return 'Other'
+  
 
     df_all['method_group'] = df_all.apply(method_group, axis=1)
     df_all['variant'] = df_all.apply(variant_label, axis=1)
 
     # Define order and positions
-    method_order = ['Louvain', 'Leiden', 'LocStab-S', 'LocStab-P',
-                    'LocStab-Ld']
+    if mode == "LS":
+        method_order = ['Louvain', 'Leiden', 'LocStab-S', 'LocStab-P','LocStab-Ld']
+    else:
+        method_order = ['Louvain', 'Leiden', 'LocPop-S', 'LocPop-P','LocPop-Ld']
     method_pos = {method: i for i, method in enumerate(method_order)}
 
     variant_colors = {
@@ -471,3 +429,44 @@ def plot_custom_thresholds_with_louvain_leiden(dfs, labels, dataset_name, score_
     plt.subplots_adjust(right=0.75)
 
     return fig, ax
+    
+def try_parse_tuple_community(x):
+    # Handle actual tuples or lists
+    if isinstance(x, (tuple, list)) and len(x) == 2:
+        return (float(x[0]), float(x[1]))
+
+    # Handle strings like '(0.85, 0.05)'
+    if isinstance(x, str) and x.startswith('('):
+        try:
+            parsed = ast.literal_eval(x)
+            if isinstance(parsed, (tuple, list)) and len(parsed) == 2:
+                return (float(parsed[0]), float(parsed[1]))
+        except Exception:
+            pass
+
+    # Handle known invalids like 'nan', 'n.A.', empty string, etc.
+    return (np.nan, 0.0)    
+    
+
+def normalize_score_column_community(df, score_cols):
+    for col in score_cols:
+        df[col] = df[col].apply(try_parse_tuple_community)
+    return df
+    
+
+
+def plot_and_save_community(dfs,labels, dataset, score, mode = "LP", save_path= None):
+    for i in range(len(dfs)):
+        dfs[i].replace("n.A.", np.nan, inplace= True)
+        dfs[i] = normalize_score_column_community(dfs[i], [score])
+
+    fig, ax = plot_custom_thresholds_with_louvain_leiden(
+    dfs=dfs,
+    labels=labels,
+    dataset_name=dataset,
+    score_col=score,
+    mode = mode)
+    if save_path:
+        plt.savefig(save_path, format='png', dpi=300, bbox_inches='tight')
+        print(f"Figure saved as {save_path}")
+    plt.show()
