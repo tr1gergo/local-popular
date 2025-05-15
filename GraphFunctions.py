@@ -52,40 +52,39 @@ def generate_graph(n, k, p, q):
 
     return G, truth
 
+import numpy as np
+import networkx as nx
 
-
-import random
-
-def permute_graph_with_truth(G, truth):
+def permute_graph_with_truth(G, truth=None):
     """
-
-    Permutes node labels in a graph and updates the truth list accordingly.
+    Randomly permutes node labels of a NetworkX graph and updates the truth list accordingly.
     
-    Parameters:
-    - G: networkx.Graph with nodes labeled from 0 to n-1
-    - truth: list of length n, where truth[i] is the cluster label of node i
-
+    Assumes:
+    - Nodes in G are labeled 0 to n-1
+    - truth[i] is the label of node i
+    
     Returns:
-    - G_permuted: graph with permuted node labels
-    - truth_permuted: list where truth_permuted[i] is the label of node i in G_permuted
+    - G_permuted: the relabeled graph
+    - truth_permuted: list of labels where truth_permuted[i] is the label of node i in G_permuted
     """
-    n = len(truth)
-    assert set(G.nodes()) == set(range(n)), "Graph nodes must be labeled 0 to n-1"
+    n = len(G)
+    old_nodes = list(range(n))
+    new_nodes = list(old_nodes)
+    np.random.shuffle(new_nodes)
 
-    perm = list(range(n))
-    random.shuffle(perm)  # perm[i] is the new label of node i
-    inverse_perm = [0] * n
-    for i, p in enumerate(perm):
-        inverse_perm[p] = i  # inverse_perm[new_id] = old_id
-
-    mapping = {i: perm[i] for i in range(n)}
+    # Mapping: old -> new
+    mapping = {old: new for old, new in zip(old_nodes, new_nodes)}
     G_permuted = nx.relabel_nodes(G, mapping)
 
     if truth is not None:
-        truth_permuted = [truth[inverse_perm[i]] for i in range(n)]
-
+        # Inverse mapping: new -> old
+        inverse_mapping = {v: k for k, v in mapping.items()}
+        truth_permuted = [truth[inverse_mapping[i]] for i in range(n)]
         return G_permuted, truth_permuted
-    return G_permuted,None
+
+    return G_permuted, None
+
+
 
 def create_graphs_hop_distance(G,friend_bound,enemy_bound):
     """
