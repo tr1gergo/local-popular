@@ -85,7 +85,7 @@ def permute_graph_with_truth(G, truth):
          truth_permuted = [truth[inverse_perm[i]] for i in range(n)]
 
          return G_permuted, truth_permuted
-     return G_permuted,None
+    return G_permuted,None
 
 def create_graphs_hop_distance(G,friend_bound,enemy_bound):
     """
