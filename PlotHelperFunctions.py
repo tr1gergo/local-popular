@@ -67,33 +67,41 @@ def plot_stuff(points, clusters1, clusters2, clusters3, title="",title_1 = "", t
 
 
 def method_group(row):
-        m = row['Method']
-        if "LS" in m:
-            if 'everyone alone' in m:
-                return 'LocStab-S'
-            elif 'predicted number of clusters' in m:
-                return 'LocStab-P'
-            elif 'output of leiden' in m:
-                return 'LocStab-Ld'
-        elif 'louvain' in m.lower():
-            return 'Louvain'
-        elif 'leiden' in m.lower():
-            return 'Leiden'
-        elif "LP" in m:
-            if 'everyone alone' in m:
-                return 'LocPop-S'
-            elif 'predicted number of clusters' in m:
-                return 'LocPop-P'
-            elif 'output of k-means' in m:
-                return 'LocPop-KM'
-            elif 'output of dbscan' in m:
-                return 'LocPop-D'
-        elif 'kmeans' in m.lower():
-            return 'K-means'
-        elif 'dbscan' in m.lower():
-            return 'DBSCAN'
-        else:
-            return 'Other'
+    m = row['Method']
+    if "LS" in m:
+        if 'everyone alone' in m:
+            return 'LocStab-S'
+        elif 'predicted number of clusters' in m:
+            return 'LocStab-P'
+        elif 'output of leiden' in m:
+            return 'LocStab-Ld'
+        elif 'output of k-means' in m:
+            return 'LocStab-KM'
+        elif 'output of dbscan' in m.lower():
+            return 'LocStab-D'
+
+    elif "LP" in m:
+        if 'everyone alone' in m:
+            return 'LocPop-S'
+        elif 'predicted number of clusters' in m:
+            return 'LocPop-P'
+        elif 'output of k-means' in m:
+            return 'LocPop-KM'
+        elif 'output of dbscan' in m.lower():
+            return 'LocPop-D'
+        elif 'output of leiden' in m:
+            return 'LocPop-Ld'
+
+    elif 'louvain' in m.lower():
+        return 'Louvain'
+    elif 'leiden' in m.lower():
+        return 'Leiden'
+    elif 'kmeans' in m.lower():
+        return 'K-means'
+    elif 'dbscan' in m.lower():
+        return 'DBSCAN'
+    else:
+        return 'Other'
 
 def variant_label(row):
     m = row['Method']
