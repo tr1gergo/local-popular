@@ -26,7 +26,8 @@ def plot_clustering(points, clusters, title):
 
     # Check if the points are 2D
     if data.shape[1] != 2:
-        raise ValueError("Only 2D data can be visualized. Your data has {} dimensions.".format(data.shape[1]))
+        return
+        #raise ValueError("Only 2D data can be visualized. Your data has {} dimensions.".format(data.shape[1]))
 
     # Scatter plot for clustering
     plt.figure(figsize=(8, 6))
