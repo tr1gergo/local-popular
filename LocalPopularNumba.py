@@ -168,7 +168,6 @@ def solve_with_numba(
             mode,
             local_stable
         )
-
         if agent == -1:
             break
 
@@ -184,6 +183,7 @@ def solve_with_numba(
         )
 
         num_moves += 1
+
 
     return clustering, num_moves
 
@@ -294,7 +294,7 @@ def find_best_move(
                     - e_weight * e_target
             )
             # if local_stable=True, v has to prefer the swap
-            if local_stable & v_vote <= 0:
+            if local_stable and v_vote <= 0:
                 continue
 
             if v_vote > 0:

@@ -3,7 +3,7 @@ import time
 
 import networkx as nx
 
-from sklearn.metrics import rand_score, silhouette_score, davies_bouldin_score
+from sklearn.metrics import adjusted_rand_score, silhouette_score, davies_bouldin_score
 
 
 def time_tester(function,permutations):
@@ -59,7 +59,7 @@ def calculate_scores_CD(output, truth, graph):
         labels = list(output[i].values())
 
         if truth[i] is not None:
-            rand_scores.append(rand_score(truth[i], labels))
+            rand_scores.append(adjusted_rand_score(truth[i], labels))
         else:
             rand_scores.append(-1)
 
@@ -102,7 +102,7 @@ def calculate_scores_clustering(output,truth,graph):
 
     for i in range(len(output)):
         if truth[i] is not None:
-            rand_scores.append(rand_score(truth[i], output[i]))
+            rand_scores.append(adjusted_rand_score(truth[i], output[i]))
             if len(set(output[i])) == 1:
                 silhouette_scores.append(-100)
                 db_scores.append(-100)
