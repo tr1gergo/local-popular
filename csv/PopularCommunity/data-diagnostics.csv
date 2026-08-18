@@ -1,0 +1,5 @@
+Dataset,Nodes,Edges,Connected Components,Largest Component,Largest-Component Diameter,Reference Classes,Within-Class Edges,Between-Class Edges,Mean Within-Class Degree,Mean Between-Class Degree,Generator Within Probability,Generator Between Probability,Connected Blocks,Ring Backbone
+Karate Club,34,78,1,34,5,2.0,67.0,11.0,3.9411764705882355,0.6470588235294118,,,,
+Cora,2708,5278,78,2485,19,7.0,4275.0,1003.0,3.157311669128508,0.7407680945347119,,,,
+Jazz,198,2742,1,198,6,,,,,,,,,
+Random-25,250,519,1,250,13,25.0,463.0,56.0,3.704,0.448,0.4,0.001,True,True

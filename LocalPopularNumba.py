@@ -1,6 +1,3 @@
-import math
-import time
-
 import numpy as np
 from numba import njit
 
@@ -8,29 +5,42 @@ from GraphFunctions import create_relations_euclid, \
     create_relations_hop_distance_np
 
 
+def normalize_cluster_labels(labels):
+    """Map arbitrary baseline labels (including DBSCAN's -1) to 0,...,k-1."""
+    mapping = {}
+    normalized = np.empty(len(labels), dtype=np.int32)
+    for index, label in enumerate(labels):
+        key = label.item() if hasattr(label, 'item') else label
+        if key not in mapping:
+            mapping[key] = len(mapping)
+        normalized[index] = mapping[key]
+    return normalized
+
+
 def locally_popular_clustering_with_euclid_graphs_numba(agents, f_bound, e_bound, initial_clusters=None,
-                                                        mode='B', max_coalitions=0, pre=None, local_stable=False):
+                                                        mode='B', max_coalitions=0, pre=None, local_stable=False,
+                                                        return_diagnostics=False, max_iter=1_000_000):
     """
     Creates initial clustering, and friend/enemy graphs before starting the locally popular algorithm
     Args:
         agents (list): List of agent identifiers.
-        f_bound (float): float between 0 and 1. If two points have a shorter distance then diameter*f_bound they are considered friends.
-        e_bound (float): float between 0 and 1. If two points have a longer distance then diameter*e_bound they are considered friends.
+        f_bound (float): float between 0 and 1. Points at distance at most diameter*f_bound are friends.
+        e_bound (float): float between 0 and 1. If two points have a longer distance than diameter*e_bound they are considered enemies.
         initial_clusters (int): Number of initial clusters.
         mode (str, optional): Determines the move selection rule ('B', 'F', or 'E'). Defaults to 'B'.
-        max_coalitions (int, optional): Maximum allowed number of clusters. If 0, no limit is enforced. Defaults to 0.
+        max_coalitions (int, optional): Coalition-label capacity. If 0, use min(n, max(2k, 20)).
         pre (function, optional): Function used to create an initial clustering of the agents. Defaults to None.
         local_stable (bool, optional): If True, uses the local stable clustering instead of local popular. Defaults to False.
 
     Returns:
-        dict: A mapping from each agent to their final cluster ID after reaching local stability.
+        dict or (dict, dict): Final labels, optionally with move/convergence diagnostics.
 
     """
     if initial_clusters is None:
         initial_clusters = len(agents)
 
     if pre is not None:
-        initial_labels = pre(agents, initial_clusters)
+        initial_labels = normalize_cluster_labels(pre(agents, initial_clusters))
         initial_clustering = {i: initial_labels[i] for i in range(len(agents))}
     else:
         initial_clustering = {i: i % initial_clusters for i in range(len(agents))}
@@ -38,28 +48,29 @@ def locally_popular_clustering_with_euclid_graphs_numba(agents, f_bound, e_bound
     G_F, G_E = create_relations_euclid(agents, f_bound, e_bound)
 
     if max_coalitions == 0:
-        max_coalitions = initial_clusters
+        max_coalitions = min(len(agents), max(2 * initial_clusters, 20))
 
     return locally_popular_clustering_numba(agents, G_F, G_E, initial_clustering, mode,
-                                            max_coalitions, local_stable)
+                                            max_coalitions, local_stable, return_diagnostics, max_iter)
 
 
 def locally_popular_clustering_with_hop_distance_numba(agents, f_bound, e_bound, initial_clusters=None,
-                                                       mode='B', max_coalitions=0, pre=None, local_stable=False):
+                                                       mode='B', max_coalitions=0, pre=None, local_stable=False,
+                                                       return_diagnostics=False, max_iter=1_000_000):
     """
     Creates initial clustering, and friend/enemy graphs before starting the locally popular algorithm
     Args:
         agents (list): List of agent identifiers.
-        f_bound (float): float between 0 and 1. If two points have a shorter distance then diameter*f_bound they are considered friends.
-        e_bound (float): float between 0 and 1. If two points have a longer distance then diameter*e_bound they are considered friends.
+        f_bound (float): float between 0 and 1. Nodes at hop distance at most diameter*f_bound (and at least the one-hop neighborhood) are friends.
+        e_bound (float): float between 0 and 1. Nodes beyond the enemy cutoff are enemies.
         initial_clusters (int): Number of initial clusters.
         mode (str, optional): Determines the move selection rule ('B', 'F', or 'E'). Defaults to 'B'.
-        max_coalitions (int, optional): Maximum allowed number of clusters. If 0, no limit is enforced. Defaults to 0.
+        max_coalitions (int, optional): Coalition-label capacity. If 0, use min(n, max(2k, 20)).
         pre (function, optional): Function used to create an initial clustering of the agents. Defaults to None.
         local_stable (bool, optional): If True, uses the local stable clustering instead of local popular. Defaults to False.
 
     Returns:
-        dict: A mapping from each agent to their final cluster ID after reaching local stability.
+        dict or (dict, dict): Final labels, optionally with move/convergence diagnostics.
 
     """
     if initial_clusters is None:
@@ -72,27 +83,36 @@ def locally_popular_clustering_with_hop_distance_numba(agents, f_bound, e_bound,
     else:
         initial_clustering = {i: i % initial_clusters for i in range(len(agents))}
 
-    if max_coalitions == 0:
-        max_coalitions = initial_clusters
-
     l = len(list(set(initial_clustering.values())))
-    if max_coalitions < l:
-        max_coalitions = l
+    if max_coalitions == 0:
+        max_coalitions = min(len(agents), max(2 * l, 20))
+    else:
+        max_coalitions = max(max_coalitions, l)
 
     G_F, G_E = create_relations_hop_distance_np(agents, f_bound, e_bound)
     return locally_popular_clustering_numba(agents, G_F, G_E, initial_clustering, mode,
-                                            max_coalitions, local_stable)
+                                            max_coalitions, local_stable, return_diagnostics, max_iter)
 
 
 def locally_popular_clustering_numba(agents, friends, enemies, initial_clustering,
                                      mode='B', max_coalitions=0,
-                                     local_stable=False):
+                                     local_stable=False, return_diagnostics=False,
+                                     max_iter=1_000_000):
     n = len(agents)
 
     clustering = np.zeros(n, dtype=np.int32)
 
     for v in range(n):
         clustering[v] = initial_clustering[v]
+
+    if np.min(clustering) < 0:
+        raise ValueError("cluster labels must be nonnegative")
+
+    required_capacity = int(np.max(clustering)) + 1
+    if max_coalitions == 0:
+        initial_count = len(np.unique(clustering))
+        max_coalitions = min(n, max(2 * initial_count, 20))
+    max_coalitions = min(n, max(max_coalitions, required_capacity))
 
     if mode == 'B':
         mode_int = 0
@@ -103,12 +123,12 @@ def locally_popular_clustering_numba(agents, friends, enemies, initial_clusterin
     else:
         raise ValueError("mode must be B/F/E")
 
-    clustering, num_moves = solve_with_numba(
+    clustering, num_moves, converged = solve_with_numba(
         clustering,
         friends,
         enemies,
         max_coalitions,
-        1_000_000,
+        max_iter,
         mode_int,
         local_stable
     )
@@ -119,10 +139,18 @@ def locally_popular_clustering_numba(agents, friends, enemies, initial_clusterin
         for v in range(n)
     }
 
+    if return_diagnostics:
+        diagnostics = {
+            'moves': int(num_moves),
+            'converged': bool(converged),
+            'coalition_capacity': int(max_coalitions),
+            'final_coalitions': len(set(result.values())),
+        }
+        return result, diagnostics
     return result
 
 
-@njit
+@njit(cache=True)
 def solve_with_numba(
         clustering,
         friends,
@@ -134,12 +162,7 @@ def solve_with_numba(
 ):
     n = len(clustering)
 
-    # Determining the maximum numbers of allowed clusters
-
-    max_clusters = max(math.floor(max_coalitions * 2), 20)
-
-    if max_clusters > n:
-        max_clusters = n
+    max_clusters = min(max_coalitions, n)
 
     cluster_sizes = np.zeros(max_clusters, dtype=np.int32)
 
@@ -156,6 +179,8 @@ def solve_with_numba(
 
     num_moves = 0
 
+    converged = False
+
     for _ in range(max_iter):
 
         agent, target, vote = find_best_move(
@@ -169,6 +194,7 @@ def solve_with_numba(
             local_stable
         )
         if agent == -1:
+            converged = True
             break
 
         apply_move(
@@ -185,10 +211,10 @@ def solve_with_numba(
         num_moves += 1
 
 
-    return clustering, num_moves
+    return clustering, num_moves, converged
 
 
-@njit
+@njit(cache=True)
 def apply_move(
         v,
         target,
@@ -227,7 +253,7 @@ def apply_move(
     return
 
 
-@njit
+@njit(cache=True)
 def find_best_move(
         n,
         n_clusters,
@@ -258,6 +284,15 @@ def find_best_move(
     if mode == 2:
         e_weight = n
 
+    # All empty target labels represent the same singleton-creation move.  It
+    # suffices to inspect the first one.  A singleton agent is not moved to an
+    # empty label because that would only relabel the same partition.
+    empty_cluster = -1
+    for c in range(n_clusters):
+        if cluster_sizes[c] == 0:
+            empty_cluster = c
+            break
+
     for v in range(n):
 
         current = clustering[v]
@@ -272,7 +307,8 @@ def find_best_move(
                 continue
 
             if cluster_sizes[c] == 0:
-                continue
+                if c != empty_cluster or cluster_sizes[current] == 1:
+                    continue
 
             f_target = friends_in_coalition[v, c]
             e_target = enemies_in_coalition[v, c]
@@ -315,7 +351,7 @@ def find_best_move(
     return best_agent, best_cluster, best_vote
 
 
-@njit
+@njit(cache=True)
 def initialize_coalition_counters(n, n_clusters, clustering,
                                   friends, enemies):
     """

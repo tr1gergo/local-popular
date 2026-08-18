@@ -40,16 +40,16 @@ def time_tester(function,permutations):
 
 def calculate_scores_CD(output, truth, graph):
     """
-    Calculates average clustering evaluation metrics (Rand Index and Modularity) over multiple outputs.
+    Calculates average clustering evaluation metrics (adjusted Rand index and modularity) over multiple outputs.
 
     Args:
         output (list of dict): A list of clustering results, where each element is a dictionary mapping nodes to cluster labels.
-        truth (list of list or None): A list of ground truth labelings corresponding to each output. If an entry is None, the Rand Index is not computed for that case.
+        truth (list of list or None): Ground-truth labelings. If an entry is None, ARI is not computed for that case.
         graph (list of networkx.Graph): A list of NetworkX graphs corresponding to each clustering result.
 
     Returns:
         dict: A dictionary containing:
-            - 'Rand Index' (float or str): The average Rand Index across all test cases, or 'n.A.' if all were skipped.
+            - 'Adjusted Rand Index' (float or str): The average ARI across all test cases, or 'n.A.' if all were skipped.
             - 'Modularity' (float): The average modularity score across all test cases.
     """
     rand_scores = []
@@ -75,7 +75,7 @@ def calculate_scores_CD(output, truth, graph):
         avg_rand = 'n.A.'
     avg_modularity = sum(modularity_scores) / len(modularity_scores)
 
-    scores = {'Rand Index': avg_rand, 'Modularity': avg_modularity}
+    scores = {'Adjusted Rand Index': avg_rand, 'Modularity': avg_modularity}
     return scores
 
 
@@ -83,7 +83,7 @@ def calculate_scores_CD(output, truth, graph):
 
 def calculate_scores_clustering(output,truth,graph):
     """
-    Calculates average clustering evaluation metrics (Rand Index, Silhouette Score, Davies-Bouldin Score) over multiple outputs.
+    Calculates average clustering evaluation metrics (adjusted Rand index, silhouette score, Davies--Bouldin score) over multiple outputs.
 
     Args:
         output (list of list): A list of clustering results, where each element is a list of cluster labels corresponding to each node.
@@ -92,7 +92,7 @@ def calculate_scores_clustering(output,truth,graph):
 
     Returns:
         dict: A dictionary containing:
-            - 'Rand Index' (float or str): The average Rand Index across all test cases, or 'n.A.' if all were skipped.
+            - 'Adjusted Rand Index' (float or str): The average ARI across all test cases, or 'n.A.' if all were skipped.
             - 'Silhouette Score' (float or str): The average Silhouette Score across all test cases, or 'n.A.' if all were skipped.
             - 'Davies Bouldin Score' (float or str): The average Davies-Bouldin Score across all test cases, or 'n.A.' if all were skipped.
     """
@@ -103,7 +103,7 @@ def calculate_scores_clustering(output,truth,graph):
     for i in range(len(output)):
         if truth[i] is not None:
             rand_scores.append(adjusted_rand_score(truth[i], output[i]))
-            if len(set(output[i])) == 1:
+            if len(set(output[i])) <= 1 or len(set(output[i])) >= len(output[i]):
                 silhouette_scores.append(-100)
                 db_scores.append(-100)
             else:
@@ -124,7 +124,7 @@ def calculate_scores_clustering(output,truth,graph):
         avg_silhouette = 'n.A.'
     if avg_db == -100.0:
         avg_db = 'n.A.'
-    scores = {'Rand Index':avg_rand, 'Silhouette Score':avg_silhouette, 'Davies Bouldin Score':avg_db}
+    scores = {'Adjusted Rand Index':avg_rand, 'Silhouette Score':avg_silhouette, 'Davies Bouldin Score':avg_db}
     return scores
 
 

@@ -9,7 +9,8 @@ from scipy.sparse.csgraph import shortest_path
 from collections import deque
 
 
-def generate_graph(n, k, p, q):
+def generate_graph(n, k, p, q, seed=None, ensure_connected_blocks=False,
+                   connect_blocks_in_ring=False):
     """
     Generates a graph consisting of k Erdős-Rényi subgraphs with random inter-subgraph edges.
 
@@ -18,6 +19,9 @@ def generate_graph(n, k, p, q):
         k (int): The number of subgraphs to generate.
         p (float): The probability of creating an edge between two nodes within the same subgraph.
         q (float): The probability of creating an edge between nodes from different subgraphs.
+        seed (int or None): Random seed.
+        ensure_connected_blocks (bool): Resample every within-block graph until it is connected.
+        connect_blocks_in_ring (bool): Add one random bridge between each consecutive pair of blocks.
 
     Returns:
         tuple: A tuple containing:
@@ -25,6 +29,7 @@ def generate_graph(n, k, p, q):
             - truth (list): A list where each element corresponds to the community label of the node
               (in the form of a list of k values repeated n times for each subgraph).
     """
+    rng = random.Random(seed)
     G = nx.Graph()
     subgraphs = []
 
@@ -35,7 +40,11 @@ def generate_graph(n, k, p, q):
         truth += t
 
     for i in range(k):
-        subgraph = nx.erdos_renyi_graph(n, p)
+        while True:
+            subgraph_seed = rng.randrange(2**32)
+            subgraph = nx.erdos_renyi_graph(n, p, seed=subgraph_seed)
+            if not ensure_connected_blocks or nx.is_connected(subgraph):
+                break
         mapping = {node: node + i * n for node in subgraph.nodes()}
         nx.relabel_nodes(subgraph, mapping, copy=False)
         G = nx.compose(G, subgraph)
@@ -46,8 +55,14 @@ def generate_graph(n, k, p, q):
         for j in range(i + 1, k):
             for u in subgraphs[i]:
                 for v in subgraphs[j]:
-                    if random.random() < q:
+                    if rng.random() < q:
                         G.add_edge(u, v)
+
+    if connect_blocks_in_ring and k > 1:
+        for i in range(k):
+            left = tuple(sorted(subgraphs[i]))
+            right = tuple(sorted(subgraphs[(i + 1) % k]))
+            G.add_edge(rng.choice(left), rng.choice(right))
 
     return G, truth
 
@@ -99,7 +114,7 @@ def create_graphs_hop_distance(G, friend_bound, enemy_bound):
         G (networkx.Graph): The input graph to analyze. It must be undirected.
         friend_bound (float): A threshold value (between 0 and 1) determining the maximum relative hop
                               distance for an edge to be considered a "friend" edge.
-        enemy_bound (float): A threshold value (greater than 1) determining the minimum relative hop
+        enemy_bound (float): A threshold value between 0 and 1 determining the minimum relative hop
                              distance for an edge to be considered an "enemy" edge.
 
     Returns:
@@ -133,7 +148,7 @@ def create_graphs_hop_distance(G, friend_bound, enemy_bound):
                     path_length = max_path
                 if path_length <= 1 or path_length <= max_path * friend_bound:
                     G_F.add_edge(u, v)
-                elif path_length >= max_path * enemy_bound:
+                elif path_length > max_path * enemy_bound:
                     G_E.add_edge(u, v)
 
     return G_F, G_E
@@ -148,7 +163,7 @@ def create_relations_hop_distance(G, friend_bound, enemy_bound):
         G (networkx.Graph): The input graph to analyze. It must be undirected.
         friend_bound (float): A threshold value (between 0 and 1) determining the maximum relative hop
                               distance for an edge to be considered a "friend" edge.
-        enemy_bound (float): A threshold value (greater than 1) determining the minimum relative hop
+        enemy_bound (float): A threshold value between 0 and 1 determining the minimum relative hop
                              distance for an edge to be considered an "enemy" edge.
 
     Returns:
@@ -170,7 +185,7 @@ def create_relations_hop_distance(G, friend_bound, enemy_bound):
     )
 
     friend_limit = max(max_path * friend_bound, 1)
-    enemy_limit = max(max_path * enemy_bound, 2)
+    enemy_cutoff = max_path * enemy_bound
 
     friendship_edges = {n: set() for n in nodes}
     enemy_edges = {n: set() for n in nodes}
@@ -185,7 +200,7 @@ def create_relations_hop_distance(G, friend_bound, enemy_bound):
             friendship_edges[u].add(v)
             friendship_edges[v].add(u)
 
-        elif path_length >= enemy_limit:
+        elif path_length > enemy_cutoff:
             enemy_edges[u].add(v)
             enemy_edges[v].add(u)
 
@@ -201,7 +216,7 @@ def create_relations_hop_distance_np(G, friend_bound, enemy_bound):
         G (networkx.Graph): The input graph to analyze. It must be undirected.
         friend_bound (float): A threshold value (between 0 and 1) determining the maximum relative hop
                               distance for an edge to be considered a "friend" edge.
-        enemy_bound (float): A threshold value (greater than 1) determining the minimum relative hop
+        enemy_bound (float): A threshold value between 0 and 1 determining the minimum relative hop
                              distance for an edge to be considered an "enemy" edge.
 
     Returns:
@@ -210,21 +225,26 @@ def create_relations_hop_distance_np(G, friend_bound, enemy_bound):
         enemy_graph (numpy.Array): A numpy array representing "enemy" edges, where nodes are connected
                                     if their hop distance is greater than `enemy_bound`.
     """
-    nodes = list(G.nodes())
+    nodes = sorted(G.nodes())
     n = len(nodes)
 
-    A = nx.to_scipy_sparse_array(G, dtype=np.uint8)
+    if nodes != list(range(n)):
+        raise ValueError("graph nodes must be labeled consecutively from 0 to n-1")
+
+    A = nx.to_scipy_sparse_array(G, nodelist=nodes, dtype=np.uint8)
     D = shortest_path(A, directed=False, unweighted=True, return_predecessors=False)
 
     max_path = np.max(D[np.isfinite(D)])
 
     friend_limit = max(max_path * friend_bound, 1)
-    enemy_limit = max(max_path * enemy_bound, 2)
+    enemy_cutoff = max_path * enemy_bound
 
     upper = np.triu(np.ones((n, n), dtype=bool), k=1)
 
     friend_mask = upper & (D <= friend_limit)
-    enemy_mask = upper & (D >= enemy_limit)
+    # FEN categories must be disjoint.  On an exact shared cutoff, friendship
+    # takes precedence, matching the if/elif implementation above.
+    enemy_mask = upper & ~friend_mask & (D > enemy_cutoff)
 
     fi, fj = np.where(friend_mask)
     ei, ej = np.where(enemy_mask)
@@ -266,7 +286,7 @@ def create_graphs_hop_distance_abs(G, friend_bound, enemy_bound):
                     path_length = max_path
                 if path_length <= 1 or path_length <= friend_bound:
                     G_F.add_edge(u, v)
-                elif path_length >= enemy_bound:
+                elif path_length > enemy_bound:
                     G_E.add_edge(u, v)
 
     return G_F, G_E
@@ -328,7 +348,9 @@ def create_relations_euclid(
     friend_dst = np.concatenate((friend_j, friend_i))
 
     # Enemies
-    enemy_mask = normalized >= enemy_bound
+    # FEN categories must be disjoint.  On an exact shared cutoff, friendship
+    # takes precedence.
+    enemy_mask = ~friend_mask & (normalized > enemy_bound)
 
     enemy_i = i_idx[enemy_mask]
     enemy_j = j_idx[enemy_mask]
@@ -351,7 +373,7 @@ def create_relations_euclid(
     return friendship_graph, enemy_graph
 
 
-def my_make_circles(n, radius=0.2):
+def my_make_circles(n, radius=0.2, random_state=None):
     # Parameters for the circle clusters
     n_points_per_cluster = n // 3  # Number of points in each cluster
     noise_std = 0.05  # Standard deviation of noise
@@ -362,11 +384,12 @@ def my_make_circles(n, radius=0.2):
     # Radius for clusters
 
     # Generate clusters
+    rng = np.random.default_rng(random_state)
     data = []
     for center_x, center_y in centers:
-        angles = np.random.uniform(0, 2 * np.pi, n_points_per_cluster)
-        x = center_x + radius * np.cos(angles) + np.random.normal(0, noise_std, n_points_per_cluster)
-        y = center_y + radius * np.sin(angles) + np.random.normal(0, noise_std, n_points_per_cluster)
+        angles = rng.uniform(0, 2 * np.pi, n_points_per_cluster)
+        x = center_x + radius * np.cos(angles) + rng.normal(0, noise_std, n_points_per_cluster)
+        y = center_y + radius * np.sin(angles) + rng.normal(0, noise_std, n_points_per_cluster)
         data.append(np.column_stack((x, y)))
 
     data = np.vstack(data)
@@ -498,7 +521,7 @@ def calculate_euclidian_relationships(agents, friendship_bound, enemy_bound):
         if distances[i, j] / max_distance <= friendship_bound:
             friendship_edges.append((i, j))
         else:
-            if distances[j, i] / max_distance >= enemy_bound:
+            if distances[j, i] / max_distance > enemy_bound:
                 enemy_edges.append((i, j))
 
     return friendship_edges, enemy_edges
@@ -524,7 +547,7 @@ def calculate_euclidian_relationships_fast(
     i_idx, j_idx = np.triu_indices(n, k=1)
 
     friendship_mask = normalized <= friendship_bound
-    enemy_mask = normalized >= enemy_bound
+    enemy_mask = ~friendship_mask & (normalized > enemy_bound)
 
     friendship_edges = list(
         zip(i_idx[friendship_mask], j_idx[friendship_mask])
