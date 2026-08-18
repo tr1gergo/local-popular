@@ -1,13 +1,12 @@
 # Local Popularity Heuristics
 
 This repository contains the NUMBA implementation and simulation artifacts for
-the LocPop and LocStab heuristics studied in the accompanying paper.
+the LocPop and LocStab heuristics studied in the NeurIPS 2025 paper "Clustering via Hedonic Games: New Concepts and Algorithms".
 
-The four `*Numba.ipynb` notebooks are the authoritative experiments. Shared
+The four `*Numba.ipynb` notebooks contain experiments. Shared
 code is in `BenchmarkNumbaExperiments.py`, `LocalPopularNumba.py`, and
 `GraphFunctions.py`; generated data and plots are stored in `csv/` and
-`figures/`. The copy-pasteable AIJ simulations section is
-`simulations_section_AIJ.tex`.
+`figures/`.
 
 To reproduce the experiments, install
 `requirements-numba-experiments.txt` and run the notebooks from a fresh kernel
